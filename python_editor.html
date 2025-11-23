@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>In-Browser Python Editor (Skulpt)</title>
+  <style>
+    :root{
+      --bg:#0f1724; --panel:#0b1220; --accent:#06b6d4; --muted:#9aa4b2; --text:#e6eef6;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+    }
+    html,body{height:100%; margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    body{background:linear-gradient(180deg,#071022 0%, #071427 100%); color:var(--text); display:flex; flex-direction:column; gap:12px; padding:12px;}
+    header{display:flex; align-items:center; gap:12px;}
+    h1{font-size:16px; margin:0;}
+    .toolbar{display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;}
+    button{background:var(--accent); border:none; color:#042029; padding:8px 12px; border-radius:8px; font-weight:600;}
+    button.secondary{background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.06);}
+    .container{display:flex; gap:12px; flex:1; min-height:420px;}
+    .editor, .right{background:var(--panel); border-radius:10px; padding:10px; box-shadow:0 6px 18px rgba(2,6,23,0.6); flex:1; display:flex; flex-direction:column;}
+    .editor{flex:1.4; min-width:260px;}
+    .right{flex:0.9; min-width:220px;}
+    textarea#code{flex:1; width:100%; resize:none; background:transparent; color:var(--text); border:none; outline:none; font-family:var(--mono); font-size:14px; line-height:1.5; padding:8px;}
+    .output{flex:1; overflow:auto; white-space:pre-wrap; font-family:var(--mono); font-size:13px; padding:8px; background:rgba(0,0,0,0.15); border-radius:6px; color:#e6eef6;}
+    label{font-size:12px; color:var(--muted); margin-bottom:6px;}
+    .small{font-size:12px; color:var(--muted);}
+    .row{display:flex; gap:8px; align-items:center;}
+    .controls{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+    .file-actions{margin-left:auto;}
+    input[type="file"]{display:none;}
+    .footer{font-size:12px; color:var(--muted); text-align:center;}
+    @media (max-width:860px){
+      .container{flex-direction:column;}
+      .right{order:2;}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Python Editor — Run Python in your browser (Skulpt)</h1>
+  </header>
+
+  <div class="toolbar">
+    <div class="row controls">
+      <button id="runBtn">Run ▶</button>
+      <button id="clearOutput" class="secondary">Clear Output</button>
+      <button id="downloadBtn" class="secondary">Download .py</button>
+      <label class="secondary" for="fileInput" style="padding:8px 12px; border-radius:8px; cursor:pointer;">Load .py</label>
+      <input id="fileInput" type="file" accept=".py,text/plain">
+      <div class="file-actions small" id="filenameDisplay"></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <section class="editor">
+      <label for="code">Code</label>
+      <textarea id="code" spellcheck="false">// Try this:
+print("Hello from Skulpt!")
+for i in range(1,6):
+    print("Line", i)
+</textarea>
+    </section>
+
+    <aside class="right">
+      <label>Output</label>
+      <div id="output" class="output"></div>
+      <div style="height:12px"></div>
+      <div class="small">Notes: This runs in your browser using Skulpt (Python subset). No server required.</div>
+    </aside>
+  </div>
+
+  <div class="footer">Tip: On iPhone, tap the share icon → Save to Files to keep the HTML locally for offline use.</div>
+
+  <script src="https://cdn.jsdelivr.net/gh/skulpt/skulpt/dist/skulpt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/skulpt/skulpt/dist/skulpt-stdlib.js"></script>
+
+  <script>
+    const runBtn = document.getElementById('runBtn');
+    const outputEl = document.getElementById('output');
+    const codeEl = document.getElementById('code');
+    const clearOutputBtn = document.getElementById('clearOutput');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const filenameDisplay = document.getElementById('filenameDisplay');
+
+    function writeOutput(text){
+      outputEl.textContent += text;
+      outputEl.scrollTop = outputEl.scrollHeight;
+    }
+
+    clearOutputBtn.addEventListener('click', ()=> outputEl.textContent = '');
+
+    downloadBtn.addEventListener('click', ()=>{
+      const blob = new Blob([codeEl.value], {type: 'text/x-python'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'script.py';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    fileInput.addEventListener('change', (ev)=>{
+      const f = ev.target.files[0];
+      if(!f) return;
+      filenameDisplay.textContent = f.name;
+      const reader = new FileReader();
+      reader.onload = (e) => { codeEl.value = e.target.result; };
+      reader.readAsText(f);
+    });
+
+    function builtinRead(x) {
+      if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) {
+        throw "File not found: '" + x + "'";
+      }
+      return Sk.builtinFiles["files"][x];
+    }
+
+    async function runCode() {
+      outputEl.textContent = '';
+      const userCode = codeEl.value;
+      Sk.configure({
+        output: writeOutput,
+        read: builtinRead,
+        python3: true,
+      });
+
+      try {
+        await Sk.misceval.asyncToPromise(function() {
+          return Sk.importMainWithBody("<stdin>", false, userCode, true);
+        });
+      } catch (err) {
+        writeOutput(String(err) + "\n");
+        console.error(err);
+      }
+    }
+
+    runBtn.addEventListener('click', runCode);
+
+    codeEl.addEventListener('keydown', (e)=>{
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runCode();
+      }
+    });
+
+    if (typeof Sk === 'undefined') {
+      writeOutput("Skulpt library failed to load. Check your internet connection or save the two Skulpt files locally and edit script src paths.");
+    }
+  </script>
+</body>
+</html>
