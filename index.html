@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Python Editor</title>
+
+    <!-- Load Skulpt -->
+    <script src="skulpt.min.js"></script>
+    <script src="skulpt-stdlib.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #111;
+            color: #fff;
+        }
+        textarea {
+            width: 100%;
+            height: 250px;
+            font-size: 16px;
+            font-family: monospace;
+            background: #222;
+            color: #0f0;
+            padding: 10px;
+            border: 1px solid #444;
+        }
+        #output {
+            width: 100%;
+            height: 200px;
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            margin-top: 15px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+        button {
+            padding: 10px 20px;
+            margin-top: 15px;
+            background: #0f0;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Online Python Editor</h2>
+
+    <textarea id="code" placeholder="Write Python code here...">print("Hello from GitHub Pages!")</textarea>
+
+    <br>
+    <button onclick="runPython()">Run Code</button>
+
+    <pre id="output"></pre>
+
+    <script>
+        function outf(text) {
+            var output = document.getElementById("output");
+            output.innerHTML += text;
+        }
+
+        function builtinRead(x) {
+            if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) {
+                throw "File not found: '" + x + "'";
+            }
+            return Sk.builtinFiles["files"][x];
+        }
+
+        function runPython() {
+            var code = document.getElementById("code").value;
+            var output = document.getElementById("output");
+            output.innerHTML = ""; 
+
+            Sk.configure({
+                output: outf,
+                read: builtinRead
+            });
+
+            Sk.misceval.asyncToPromise(function() {
+                return Sk.importMainWithBody("<stdin>", false, code, true);
+            }).catch(function(err) {
+                output.innerHTML = err.toString();
+            });
+        }
+    </script>
+
+</body>
+</html>
